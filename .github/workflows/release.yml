@@ -18,6 +18,9 @@ jobs:
           - { os: ubuntu-latest, arch: x86_64 }
           - { os: ubuntu-24.04-arm, arch: aarch64 }
     runs-on: ${{ matrix.os }}
+    # aarch64 is experimental for Verrou's FP backends — never let it block the
+    # x86_64 release (publish still gets whatever artifacts did build).
+    continue-on-error: ${{ matrix.arch == 'aarch64' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install build deps

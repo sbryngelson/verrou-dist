@@ -18,6 +18,9 @@ jobs:
           - { os: ubuntu-latest, arch: x86_64 }
           - { os: ubuntu-24.04-arm, arch: aarch64 }
     runs-on: ${{ matrix.os }}
+    # aarch64 is experimental — don't let its result raise a false `conflict`
+    # label when x86_64 (the validated target) is fine. Its result stays visible.
+    continue-on-error: ${{ matrix.arch == 'aarch64' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install build deps
