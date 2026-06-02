@@ -40,7 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           # shellcheck disable=SC1091
-          source versions.env
+          source ./versions.env
           name="verrou-${VERROU_COMMIT}-valgrind-${VALGRIND_VERSION}-linux-${{ matrix.arch }}"
           tar -C out -cf - . | zstd -19 -T0 -o "${name}.tar.zst"
           sha256sum "${name}.tar.zst" > "${name}.tar.zst.sha256"
@@ -50,7 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           # shellcheck disable=SC1091
-          source versions.env
+          source ./versions.env
           name="verrou-${VERROU_COMMIT}-valgrind-${VALGRIND_VERSION}-linux-${{ matrix.arch }}"
           reloc=/tmp/verrou-reloc; mkdir -p "$reloc"
           zstd -dc "${name}.tar.zst" | tar -C "$reloc" -xf -
