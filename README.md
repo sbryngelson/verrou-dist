@@ -41,7 +41,12 @@ base=verrou-<commit>-valgrind-<ver>-linux-$arch.tar.zst
 curl -fsSLO https://github.com/sbryngelson/verrou-dist/releases/download/$ver/$base
 curl -fsSLO https://github.com/sbryngelson/verrou-dist/releases/download/$ver/$base.sha256
 sha256sum -c $base.sha256
-mkdir -p ~/.local/verrou && tar -C ~/.local/verrou -xf $base
+mkdir -p ~/.local/verrou && tar -C ~/.local/verrou --zstd -xf $base
+
+# Valgrind bakes its build prefix into the binary, so a relocated tree needs its
+# environment. Source the (relocatable) env.sh — sets VALGRIND_LIB + PYTHONPATH:
+source ~/.local/verrou/env.sh
+valgrind --tool=verrou --version       # works from any path now
 ```
 
 ## Automation model (deliberate)

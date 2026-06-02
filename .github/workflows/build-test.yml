@@ -29,12 +29,20 @@ jobs:
           sudo apt-get install -y build-essential automake autoconf libtool patch wget git zstd
       - name: Build (patch-apply + compile + install)
         run: bash build.sh --prefix "$HOME/verrou"
-      - name: Smoke test (verrou actually perturbs FP)
+      - name: Smoke test (relocatable + verrou actually perturbs FP)
         run: |
           set -euo pipefail
+          # Relocate the install to a path != the build prefix, then drive it
+          # purely through env.sh (PATH + VALGRIND_LIB). This is what downstreams
+          # do with a prebuilt tarball, and it catches non-relocatable installs.
+          reloc=/tmp/verrou-reloc
+          mkdir -p "$reloc" && cp -a "$HOME/verrou/." "$reloc/"
+          # shellcheck disable=SC1091
+          source "$reloc/env.sh"
+          valgrind --tool=verrou --version
           cc -g -O0 test/smoke.c -o /tmp/smoke
-          base=$("$HOME/verrou/bin/valgrind" --tool=verrou --rounding-mode=nearest /tmp/smoke 2>/dev/null)
-          rand=$("$HOME/verrou/bin/valgrind" --tool=verrou --rounding-mode=random  /tmp/smoke 2>/dev/null)
+          base=$(valgrind --tool=verrou --rounding-mode=nearest /tmp/smoke 2>/dev/null)
+          rand=$(valgrind --tool=verrou --rounding-mode=random  /tmp/smoke 2>/dev/null)
           echo "nearest=$base random=$rand"
           [ "$base" != "$rand" ] || { echo "ERROR: random rounding did not change the result — verrou not perturbing"; exit 1; }
 

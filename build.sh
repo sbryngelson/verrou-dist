@@ -78,6 +78,25 @@ echo "==> Building (~20 min)"
 make -j"$(nproc)"
 make install
 
+# Valgrind bakes its install prefix into the binary (VG_LIBDIR), so a prebuilt
+# tree extracted elsewhere can't find its tools. Verrou's stock env.sh hardcodes
+# the build prefix too. Overwrite it with a self-locating one so the artifact is
+# relocatable: sourcing it sets VALGRIND_LIB (the tool loader) + PYTHONPATH (the
+# verrou_dd_* drivers) relative to wherever the tree actually lives.
+echo "==> Writing relocatable env.sh"
+cat > "${PREFIX}/env.sh" <<'ENVEOF'
+# Relocatable environment for this Valgrind+Verrou install (verrou-dist).
+# Usage:  source /path/to/env.sh   — then valgrind --tool=verrou and verrou_dd_* work from any path.
+_vd_root="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" >/dev/null 2>&1 && pwd)"
+export VALGRIND_LIB="${_vd_root}/libexec/valgrind"
+export PATH="${_vd_root}/bin:${PATH}"
+export LD_LIBRARY_PATH="${_vd_root}/lib/valgrind${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+for _vd_pp in "${_vd_root}"/lib/python*/site-packages; do
+    [ -d "${_vd_pp}" ] && export PYTHONPATH="${_vd_pp}:${_vd_pp}/valgrind${PYTHONPATH:+:${PYTHONPATH}}"
+done
+unset _vd_root _vd_pp
+ENVEOF
+
 echo "==> Verifying"
 "${PREFIX}/bin/valgrind" --tool=verrou --version
 echo "==> Done: ${PREFIX}"
