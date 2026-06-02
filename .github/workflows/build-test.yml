@@ -1,0 +1,53 @@
+name: build-test
+
+# The real compatibility gate: build the pinned (verrou, valgrind) pair and prove
+# it works. A failing patch-apply / build / smoke test = a version conflict; on a
+# PR that gets the `conflict` label so the bump PR can't be merged blind.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, arch: x86_64 }
+          - { os: ubuntu-24.04-arm, arch: aarch64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build deps
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential automake autoconf libtool patch wget git zstd
+      - name: Build (patch-apply + compile + install)
+        run: bash build.sh --prefix "$HOME/verrou"
+      - name: Smoke test (verrou actually perturbs FP)
+        run: |
+          set -euo pipefail
+          cc -g -O0 test/smoke.c -o /tmp/smoke
+          base=$("$HOME/verrou/bin/valgrind" --tool=verrou --rounding-mode=nearest /tmp/smoke 2>/dev/null)
+          rand=$("$HOME/verrou/bin/valgrind" --tool=verrou --rounding-mode=random  /tmp/smoke 2>/dev/null)
+          echo "nearest=$base random=$rand"
+          [ "$base" != "$rand" ] || { echo "ERROR: random rounding did not change the result — verrou not perturbing"; exit 1; }
+
+  conflict-label:
+    needs: build
+    if: ${{ failure() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr edit ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} --add-label conflict || true
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --body "⚠️ build-test failed for this version pair — patch may not apply, build broke, or verrou no longer perturbs. See the failing job; do not merge until resolved." || true

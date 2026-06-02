@@ -1,0 +1,61 @@
+name: release
+
+# On a version tag (vX): build the pinned pair per platform, package the install
+# tree, and publish prebuilt artifacts to a GitHub Release so downstreams (MFC)
+# download in seconds instead of a ~20-min build. workflow_dispatch builds without
+# publishing (dry run).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, arch: x86_64 }
+          - { os: ubuntu-24.04-arm, arch: aarch64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build deps
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential automake autoconf libtool patch wget git zstd
+      - name: Build
+        run: bash build.sh --prefix "$PWD/out"
+      - name: Package
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          source versions.env
+          name="verrou-${VERROU_COMMIT}-valgrind-${VALGRIND_VERSION}-linux-${{ matrix.arch }}"
+          tar -C out -cf - . | zstd -19 -T0 -o "${name}.tar.zst"
+          sha256sum "${name}.tar.zst" > "${name}.tar.zst.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verrou-${{ matrix.arch }}
+          path: |
+            *.tar.zst
+            *.tar.zst.sha256
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" dist/* \
+            --repo "${{ github.repository }}" \
+            --title "${{ github.ref_name }}" --generate-notes

@@ -1,0 +1,64 @@
+name: watch-upstream
+
+# Weekly (and on demand): check edf-hpc/verrou for a new commit, resolve the
+# Valgrind version its patch targets, and — if either moved — open/update a bump
+# PR. The PR's build-test run is the real compatibility gate; a human merges to
+# release (a green build alone can still hide a behavioural change).
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve latest compatible (verrou, valgrind) pair
+        id: r
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          source versions.env
+          new_verrou=$(git ls-remote https://github.com/edf-hpc/verrou HEAD | cut -f1 | cut -c1-7)
+          git clone --quiet https://github.com/edf-hpc/verrou /tmp/verrou
+          git -C /tmp/verrou checkout --quiet "$new_verrou"
+          new_valgrind=$(python3 resolve_versions.py /tmp/verrou | cut -d= -f2)
+          echo "current: verrou=$VERROU_COMMIT valgrind=$VALGRIND_VERSION"
+          echo "latest : verrou=$new_verrou valgrind=$new_valgrind"
+          echo "new_verrou=$new_verrou"   >> "$GITHUB_OUTPUT"
+          echo "new_valgrind=$new_valgrind" >> "$GITHUB_OUTPUT"
+          if [ "$new_verrou" = "$VERROU_COMMIT" ] && [ "$new_valgrind" = "$VALGRIND_VERSION" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open/update bump PR
+        if: steps.r.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NV: ${{ steps.r.outputs.new_verrou }}
+          NG: ${{ steps.r.outputs.new_valgrind }}
+        run: |
+          set -euo pipefail
+          branch="bump/verrou-${NV}-valgrind-${NG}"
+          git config user.name "verrou-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          sed -i "s/^VALGRIND_VERSION=.*/VALGRIND_VERSION=${NG}/" versions.env
+          sed -i "s/^VERROU_COMMIT=.*/VERROU_COMMIT=${NV}/" versions.env
+          # a Valgrind bump invalidates any pinned SHA — clear it so it isn't stale
+          sed -i "s/^VALGRIND_SHA256=.*/VALGRIND_SHA256=/" versions.env
+          git add versions.env
+          git commit -m "bump: verrou@${NV} + valgrind ${NG}"
+          git push -f origin "$branch"
+          body=$'Automated upstream bump.\n\n- Verrou drives the pairing; Valgrind resolved from its patch filename.\n- **build-test** verifies the patch applies + builds + smoke-tests on x86_64/aarch64.\n- If `VALGRIND_VERSION` changed, re-pin `VALGRIND_SHA256` by hand.\n- Merge to release (a green build can still hide behavioural drift — review).'
+          gh pr create --base main --head "$branch" \
+            --title "bump: verrou@${NV} + valgrind ${NG}" --body "$body" \
+            || gh pr edit "$branch" --title "bump: verrou@${NV} + valgrind ${NG}" --body "$body"
