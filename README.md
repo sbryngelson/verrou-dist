@@ -2,8 +2,8 @@
 
 Prebuilt [Verrou](https://github.com/edf-hpc/verrou) (the Valgrind floating-point
 perturbation tool): a pinned **Valgrind + Verrou** pair, built once per arch and
-published as hash-verified artifacts so you can install it in seconds instead of a
-~20-min source build. Used by [MFC](https://github.com/MFlowCode/MFC)'s `./mfc.sh fp-stability`.
+published as hash-verified artifacts, so you can install it in seconds instead of a
+~20-min source build. Helpful for use in solver toolchains.
 
 Linux only. x86_64 is validated; aarch64 is published but experimental. Release
 artifacts are built in manylinux_2_28 (glibc 2.28), so they run on RHEL8/9, current
