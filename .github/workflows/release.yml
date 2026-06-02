@@ -6,7 +6,7 @@ name: release
 # publishing (dry run).
 #
 # Built inside manylinux_2_28 (glibc 2.28) so the artifact runs on RHEL8/9, current
-# HPC, and Ubuntu 18.04+ — not just whatever glibc the runner happens to ship. (It's
+# HPC, and Ubuntu 18.10+ — not just whatever glibc the runner happens to ship. (It's
 # also the oldest image whose glibc still satisfies node20, so the JS actions run.)
 on:
   push:

@@ -7,7 +7,7 @@ published as hash-verified artifacts, so you can install it in seconds instead o
 
 Linux only. x86_64 is validated; aarch64 is published but experimental. Release
 artifacts are built in manylinux_2_28 (glibc 2.28), so they run on RHEL8/9, current
-HPC, and Ubuntu 18.04+.
+HPC, and Ubuntu 18.10+ (so 20.04 LTS and newer).
 
 ## Install a release
 
