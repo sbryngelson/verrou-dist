@@ -6,7 +6,7 @@ name: release
 # publishing (dry run).
 #
 # Built inside manylinux_2_28 (glibc 2.28) so the artifact runs on RHEL8/9, current
-# HPC, and Ubuntu 18.10+ — not just whatever glibc the runner happens to ship. (It's
+# HPC, and Ubuntu 18.10+ - not just whatever glibc the runner happens to ship. (It's
 # also the oldest image whose glibc still satisfies node20, so the JS actions run.)
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
           - { os: ubuntu-24.04-arm, arch: aarch64, image: quay.io/pypa/manylinux_2_28_aarch64 }
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.image }}
-    # aarch64 is experimental for Verrou's FP backends — never let it block the
+    # aarch64 is experimental for Verrou's FP backends - never let it block the
     # x86_64 release (publish still gets whatever artifacts did build).
     continue-on-error: ${{ matrix.arch == 'aarch64' }}
     steps:
@@ -62,7 +62,7 @@ jobs:
           b=$(valgrind --tool=verrou --rounding-mode=nearest /tmp/smoke 2>/dev/null)
           r=$(valgrind --tool=verrou --rounding-mode=random  /tmp/smoke 2>/dev/null)
           echo "nearest=$b random=$r"
-          [ "$b" != "$r" ] || { echo "ERROR: random rounding did not change the result — verrou not perturbing"; exit 1; }
+          [ "$b" != "$r" ] || { echo "ERROR: random rounding did not change the result - verrou not perturbing"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: verrou-${{ matrix.arch }}

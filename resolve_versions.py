@@ -2,12 +2,12 @@
 """Resolve the Valgrind version a Verrou checkout targets.
 
 Verrou ships a patch named ``valgrind.<version>.diff`` that applies onto exactly
-that Valgrind source. That filename is the authoritative pairing signal — Verrou
-DRIVES, Valgrind FOLLOWS — so we never bump Valgrind ahead of what Verrou supports.
+that Valgrind source. That filename is the authoritative pairing signal - Verrou
+DRIVES, Valgrind FOLLOWS - so we never bump Valgrind ahead of what Verrou supports.
 
 Usage:  resolve_versions.py <verrou_checkout_dir>
 Prints: VALGRIND_VERSION=<x.y.z>
-Exits 1 (loudly) if a unique version can't be determined — never guesses.
+Exits 1 (loudly) if a unique version can't be determined - never guesses.
 """
 
 import glob
@@ -28,7 +28,7 @@ def resolve(verrou_dir: str) -> str:
         raise SystemExit(
             f"Could not determine a unique Valgrind version from {verrou_dir} "
             f"(found versions {sorted(versions)}; patch files {names}). "
-            "Verrou's layout may have changed — resolve by hand."
+            "Verrou's layout may have changed - resolve by hand."
         )
     return versions.pop()
 

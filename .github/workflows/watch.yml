@@ -1,7 +1,7 @@
 name: watch-upstream
 
 # Weekly (and on demand): check edf-hpc/verrou for a new commit, resolve the
-# Valgrind version its patch targets, and — if either moved — open/update a bump
+# Valgrind version its patch targets, and - if either moved - open/update a bump
 # PR. The PR's build-test run is the real compatibility gate; a human merges to
 # release (a green build alone can still hide a behavioural change).
 on:
@@ -53,12 +53,12 @@ jobs:
           git checkout -B "$branch"
           sed -i "s/^VALGRIND_VERSION=.*/VALGRIND_VERSION=${NG}/" versions.env
           sed -i "s/^VERROU_COMMIT=.*/VERROU_COMMIT=${NV}/" versions.env
-          # a Valgrind bump invalidates any pinned SHA — clear it so it isn't stale
+          # a Valgrind bump invalidates any pinned SHA - clear it so it isn't stale
           sed -i "s/^VALGRIND_SHA256=.*/VALGRIND_SHA256=/" versions.env
           git add versions.env
           git commit -m "bump: verrou@${NV} + valgrind ${NG}"
           git push -f origin "$branch"
-          body=$'Automated upstream bump.\n\n- Verrou drives the pairing; Valgrind resolved from its patch filename.\n- **build-test** verifies the patch applies + builds + smoke-tests on x86_64/aarch64.\n- If `VALGRIND_VERSION` changed, re-pin `VALGRIND_SHA256` by hand.\n- Merge to release (a green build can still hide behavioural drift — review).'
+          body=$'Automated upstream bump.\n\n- Verrou drives the pairing; Valgrind resolved from its patch filename.\n- **build-test** verifies the patch applies + builds + smoke-tests on x86_64/aarch64.\n- If `VALGRIND_VERSION` changed, re-pin `VALGRIND_SHA256` by hand.\n- Merge to release (a green build can still hide behavioural drift - review).'
           gh pr create --base main --head "$branch" \
             --title "bump: verrou@${NV} + valgrind ${NG}" --body "$body" \
             || gh pr edit "$branch" --title "bump: verrou@${NV} + valgrind ${NG}" --body "$body"

@@ -40,7 +40,7 @@ if [ "$(uname -s)" != "Linux" ]; then
 fi
 case "$(uname -m)" in
     x86_64) ;;
-    aarch64|arm64) echo "WARNING: $(uname -m) — Verrou FP backends are best-validated on x86_64; treat as experimental." >&2 ;;
+    aarch64|arm64) echo "WARNING: $(uname -m) - Verrou FP backends are best-validated on x86_64; treat as experimental." >&2 ;;
     *) echo "WARNING: unrecognised arch $(uname -m); build may fail." >&2 ;;
 esac
 
@@ -86,7 +86,7 @@ make install
 echo "==> Writing relocatable env.sh"
 cat > "${PREFIX}/env.sh" <<'ENVEOF'
 # Relocatable environment for this Valgrind+Verrou install (verrou-dist).
-# Usage:  source /path/to/env.sh   — then valgrind --tool=verrou and verrou_dd_* work from any path.
+# Usage:  source /path/to/env.sh   - then valgrind --tool=verrou and verrou_dd_* work from any path.
 _vd_root="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" >/dev/null 2>&1 && pwd)"
 export VALGRIND_LIB="${_vd_root}/libexec/valgrind"
 export PATH="${_vd_root}/bin:${PATH}"

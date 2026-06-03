@@ -18,7 +18,7 @@ jobs:
           - { os: ubuntu-latest, arch: x86_64 }
           - { os: ubuntu-24.04-arm, arch: aarch64 }
     runs-on: ${{ matrix.os }}
-    # aarch64 is experimental — don't let its result raise a false `conflict`
+    # aarch64 is experimental - don't let its result raise a false `conflict`
     # label when x86_64 (the validated target) is fine. Its result stays visible.
     continue-on-error: ${{ matrix.arch == 'aarch64' }}
     steps:
@@ -44,7 +44,7 @@ jobs:
           base=$(valgrind --tool=verrou --rounding-mode=nearest /tmp/smoke 2>/dev/null)
           rand=$(valgrind --tool=verrou --rounding-mode=random  /tmp/smoke 2>/dev/null)
           echo "nearest=$base random=$rand"
-          [ "$base" != "$rand" ] || { echo "ERROR: random rounding did not change the result — verrou not perturbing"; exit 1; }
+          [ "$base" != "$rand" ] || { echo "ERROR: random rounding did not change the result - verrou not perturbing"; exit 1; }
 
   conflict-label:
     needs: build
@@ -61,4 +61,4 @@ jobs:
             --repo ${{ github.repository }} --add-label conflict || true
           gh pr comment ${{ github.event.pull_request.number }} \
             --repo ${{ github.repository }} \
-            --body "build-test failed for this version pair — patch may not apply, build broke, or verrou no longer perturbs. See the failing job; do not merge until resolved." || true
+            --body "build-test failed for this version pair - patch may not apply, build broke, or verrou no longer perturbs. See the failing job; do not merge until resolved." || true
