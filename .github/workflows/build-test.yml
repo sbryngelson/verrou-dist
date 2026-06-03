@@ -61,4 +61,4 @@ jobs:
             --repo ${{ github.repository }} --add-label conflict || true
           gh pr comment ${{ github.event.pull_request.number }} \
             --repo ${{ github.repository }} \
-            --body "⚠️ build-test failed for this version pair — patch may not apply, build broke, or verrou no longer perturbs. See the failing job; do not merge until resolved." || true
+            --body "build-test failed for this version pair — patch may not apply, build broke, or verrou no longer perturbs. See the failing job; do not merge until resolved." || true
