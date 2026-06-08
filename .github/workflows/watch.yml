@@ -1,9 +1,14 @@
 name: watch-upstream
 
 # Weekly (and on demand): check edf-hpc/verrou for a new commit, resolve the
-# Valgrind version its patch targets, and - if either moved - open/update a bump
-# PR. The PR's build-test run is the real compatibility gate; a human merges to
-# release (a green build alone can still hide a behavioural change).
+# Valgrind version its patch targets, and - if either moved - open a bump PR,
+# build-test the new pair, and auto-merge it when the build passes.
+#
+# Jobs: watch (resolve + open PR) -> gate (build-test the bump branch) ->
+# merge (squash-merge if green) / report-conflict (label + comment if red).
+# The gate runs inside this run because a PR opened with GITHUB_TOKEN does NOT
+# trigger build-test on its own - so we call build-test as a reusable workflow.
+# x86_64 is the merge gate; aarch64 stays advisory (continue-on-error upstream).
 on:
   schedule:
     - cron: "0 6 * * 1" # Mondays 06:00 UTC
@@ -17,6 +22,11 @@ permissions:
 jobs:
   watch:
     runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.r.outputs.changed }}
+      new_verrou: ${{ steps.r.outputs.new_verrou }}
+      new_valgrind: ${{ steps.r.outputs.new_valgrind }}
+      branch: ${{ steps.pr.outputs.branch }}
     steps:
       - uses: actions/checkout@v4
 
@@ -63,6 +73,7 @@ jobs:
           fi
 
       - name: Open/update bump PR
+        id: pr
         if: steps.r.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -71,6 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           branch="bump/verrou-${NV}-valgrind-${NG}"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
           git config user.name "verrou-bot"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -B "$branch"
@@ -81,7 +93,56 @@ jobs:
           git add versions.env
           git commit -m "bump: verrou@${NV} + valgrind ${NG}"
           git push -f origin "$branch"
-          body=$'Automated upstream bump.\n\n- Verrou drives the pairing; Valgrind resolved from Verrou\'s Dockerfile/README.\n- **build-test** verifies the patch applies + builds + smoke-tests on x86_64/aarch64.\n- If `VALGRIND_VERSION` changed, re-pin `VALGRIND_SHA256` by hand.\n- Merge to release (a green build can still hide behavioural drift - review).'
+          body=$'Automated upstream bump.\n\n- Verrou drives the pairing; Valgrind resolved from Verrou\'s Dockerfile/README.\n- **build-test** (this run\'s `gate` job) verifies the patch applies + builds + smoke-tests; x86_64 green => this PR auto-merges, aarch64 is advisory.\n- A failed build instead labels this PR `conflict` and leaves it open for a human.\n- If `VALGRIND_VERSION` changed, re-pin `VALGRIND_SHA256` by hand once merged.'
           gh pr create --base main --head "$branch" \
             --title "bump: verrou@${NV} + valgrind ${NG}" --body "$body" \
             || gh pr edit "$branch" --title "bump: verrou@${NV} + valgrind ${NG}" --body "$body"
+
+  # Build the bump branch's pair as the merge gate. A PR opened with GITHUB_TOKEN
+  # doesn't trigger build-test by itself, so we call it here as a reusable
+  # workflow. Its conclusion = x86_64's result (aarch64 is continue-on-error).
+  gate:
+    needs: watch
+    if: ${{ needs.watch.outputs.changed == 'true' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build-test.yml
+    with:
+      ref: ${{ needs.watch.outputs.branch }}
+
+  merge:
+    needs: [watch, gate]
+    if: ${{ needs.watch.outputs.changed == 'true' && needs.gate.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Squash-merge the bump PR (x86_64 build passed)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ needs.watch.outputs.branch }}
+        run: |
+          set -euo pipefail
+          gh pr merge "$BRANCH" --repo "$GITHUB_REPOSITORY" --squash --delete-branch
+
+  report-conflict:
+    needs: [watch, gate]
+    if: ${{ always() && needs.watch.outputs.changed == 'true' && needs.gate.result == 'failure' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Flag the bump PR as conflicting (left open for a human)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ needs.watch.outputs.branch }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh label create conflict --color B60205 \
+            --description "Bump PR failed build-test" 2>/dev/null || true
+          gh pr edit "$BRANCH" --repo "$GITHUB_REPOSITORY" --add-label conflict || true
+          gh pr comment "$BRANCH" --repo "$GITHUB_REPOSITORY" \
+            --body "Auto-merge blocked: build-test failed for this pair on x86_64 - the patch may not apply, the build broke, or verrou no longer perturbs. See ${RUN_URL}. Left open for a human to resolve." || true

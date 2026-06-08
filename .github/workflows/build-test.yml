@@ -8,6 +8,14 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Reusable: watch-upstream calls this to gate a bump branch before auto-merging.
+  # `ref` is the bump branch to build; empty (direct triggers) uses the event ref.
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+        default: ""
 
 jobs:
   build:
@@ -23,6 +31,10 @@ jobs:
     continue-on-error: ${{ matrix.arch == 'aarch64' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # workflow_call passes the bump branch; direct triggers leave it empty,
+          # so checkout falls back to the event's own ref.
+          ref: ${{ inputs.ref || github.ref }}
       - name: Install build deps
         run: |
           sudo apt-get update -y
