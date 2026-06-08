@@ -104,8 +104,10 @@ jobs:
   gate:
     needs: watch
     if: ${{ needs.watch.outputs.changed == 'true' }}
-    permissions:
-      contents: read
+    # No permissions override: a reusable-workflow caller caps the WHOLE called
+    # workflow, and build-test's conflict-label job declares pull-requests/issues
+    # write. Capping below that is a startup_failure (validated even though that
+    # job is skipped here). Inherit the workflow-level grant, which covers it.
     uses: ./.github/workflows/build-test.yml
     with:
       ref: ${{ needs.watch.outputs.branch }}
