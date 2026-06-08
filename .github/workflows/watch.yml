@@ -12,6 +12,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 jobs:
   watch:
@@ -21,14 +22,36 @@ jobs:
 
       - name: Resolve latest compatible (verrou, valgrind) pair
         id: r
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           # shellcheck disable=SC1091
           source versions.env
+          # Cheap infra steps - if these fail it's a real outage, so fail red.
           new_verrou=$(git ls-remote https://github.com/edf-hpc/verrou HEAD | cut -f1 | cut -c1-7)
           git clone --quiet https://github.com/edf-hpc/verrou /tmp/verrou
           git -C /tmp/verrou checkout --quiet "$new_verrou"
-          new_valgrind=$(python3 resolve_versions.py /tmp/verrou | cut -d= -f2)
+
+          # Resolving the Valgrind version is the fragile part: it fails when
+          # Verrou moves/renames the signals it declares its target Valgrind
+          # version in. That's a human-resolve situation, not CI breakage - so
+          # file a (deduplicated) issue and exit green rather than failing red.
+          if ! out=$(python3 resolve_versions.py /tmp/verrou 2>&1); then
+            echo "resolve_versions.py failed:"; printf '%s\n' "$out"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            gh label create upstream-watch --color FBCA04 \
+              --description "Automated upstream-watch alerts" 2>/dev/null || true
+            if [ "$(gh issue list --state open --label upstream-watch --json number --jq 'length')" = "0" ]; then
+              body=$(printf '`resolve_versions.py` could not determine the Valgrind version for verrou@%s.\n\nThis usually means edf-hpc/verrou moved or renamed the signals declaring its target Valgrind version (Dockerfile `ARG VALGRIND_VERSION` / README clone instructions / `valgrind.<ver>.diff` filename). Resolve by hand and update `resolve_versions.py`.\n\n```\n%s\n```\n\n_Filed automatically by watch-upstream; it will not open a duplicate while this issue stays open._' "$new_verrou" "$out")
+              gh issue create --title "watch-upstream: cannot resolve Valgrind version (upstream layout changed)" \
+                --body "$body" --label upstream-watch
+            else
+              echo "an open upstream-watch issue already tracks this - not duplicating"
+            fi
+            exit 0
+          fi
+          new_valgrind=$(printf '%s\n' "$out" | cut -d= -f2)
           echo "current: verrou=$VERROU_COMMIT valgrind=$VALGRIND_VERSION"
           echo "latest : verrou=$new_verrou valgrind=$new_valgrind"
           echo "new_verrou=$new_verrou"   >> "$GITHUB_OUTPUT"
@@ -58,7 +81,7 @@ jobs:
           git add versions.env
           git commit -m "bump: verrou@${NV} + valgrind ${NG}"
           git push -f origin "$branch"
-          body=$'Automated upstream bump.\n\n- Verrou drives the pairing; Valgrind resolved from its patch filename.\n- **build-test** verifies the patch applies + builds + smoke-tests on x86_64/aarch64.\n- If `VALGRIND_VERSION` changed, re-pin `VALGRIND_SHA256` by hand.\n- Merge to release (a green build can still hide behavioural drift - review).'
+          body=$'Automated upstream bump.\n\n- Verrou drives the pairing; Valgrind resolved from Verrou\'s Dockerfile/README.\n- **build-test** verifies the patch applies + builds + smoke-tests on x86_64/aarch64.\n- If `VALGRIND_VERSION` changed, re-pin `VALGRIND_SHA256` by hand.\n- Merge to release (a green build can still hide behavioural drift - review).'
           gh pr create --base main --head "$branch" \
             --title "bump: verrou@${NV} + valgrind ${NG}" --body "$body" \
             || gh pr edit "$branch" --title "bump: verrou@${NV} + valgrind ${NG}" --body "$body"
